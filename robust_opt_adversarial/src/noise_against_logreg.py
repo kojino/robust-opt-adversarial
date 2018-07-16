@@ -1,5 +1,6 @@
+import argparse
 import math
-
+import os
 import numpy as np
 
 import keras
@@ -11,12 +12,18 @@ from cleverhans.utils_mnist import data_mnist
 from keras.layers import Activation, Dense, Flatten
 from keras.models import Sequential
 
-lr = 0.001
-epochs = 10
-batch_size = 128
-drop_ratio = 0.10
-num_inputs = int(28 * 28 * (1 - drop_ratio))
-noise_eps = 0.1
+parser = argparse.ArgumentParser()
+parser.add_argument('--lr', type=float, default=0.001)
+parser.add_argument('--epochs', type=int, default=100)
+parser.add_argument('--seed', type=int, default=0)
+parser.add_argument('--batch_size', type=int, default=128)
+parser.add_argument('--drop_ratio', type=float, default=0.5)
+parser.add_argument('--noise_eps', type=float, default=0.1)
+args = parser.parse_args()
+
+num_inputs = int(28 * 28 * (1 - args.drop_ratio))
+
+print(f"Generating adversarial examples for seed {args.seed}")
 
 
 def logistic_regression_model(input_ph, num_inputs, nb_classes=10):
@@ -37,6 +44,7 @@ X_train = X_train.reshape((num_train, num_rows * num_cols * num_channels))
 X_test = X_test.reshape((num_test, num_rows * num_cols * num_channels))
 
 # Randomly drop some ratio of pixels
+np.random.seed(args.seed)
 input_indices = np.random.choice(
     num_rows * num_cols, num_inputs, replace=False)
 X_train = X_train[:, input_indices]
@@ -55,14 +63,14 @@ logits = wrap.get_logits(x)
 loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y, logits=logits)
 
 # Define the update func
-optimizer = tf.train.AdamOptimizer(learning_rate=lr)
+optimizer = tf.train.AdamOptimizer(learning_rate=args.lr)
 train_step = optimizer.minimize(loss)
 acc, acc_op = tf.metrics.accuracy(
     labels=tf.argmax(y, 1), predictions=tf.argmax(logits, 1))
 
 # Define adv attack
 deepfool = DeepFool(wrap, sess=sess)
-deepfool_params = {'eps': noise_eps, 'clip_min': 0., 'clip_max': 1.}
+deepfool_params = {'eps': args.noise_eps, 'clip_min': 0., 'clip_max': 1.}
 
 # Attack images
 adv_x = deepfool.generate(x, **deepfool_params)
@@ -79,10 +87,10 @@ sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
 rng = np.random.RandomState()  # for batch sampling
 
-for epoch in range(epochs):
+for epoch in range(args.epochs):
     # Compute number of batches
-    num_batches = int(math.ceil(float(len(X_train)) / batch_size))
-    assert num_batches * batch_size >= len(X_train)
+    num_batches = int(math.ceil(float(len(X_train)) / args.batch_size))
+    assert num_batches * args.batch_size >= len(X_train)
 
     # Indices to shuffle training set
     index_shuf = list(range(len(X_train)))
@@ -90,7 +98,7 @@ for epoch in range(epochs):
     for batch in range(num_batches):
 
         # Compute batch start and end indices
-        start, end = batch_indices(batch, len(X_train), batch_size)
+        start, end = batch_indices(batch, len(X_train), args.batch_size)
 
         # Perform one training step
         feed_dict = {
@@ -111,3 +119,10 @@ print(f"Test Acc: {test_acc}")
 # Evaluate the model on the adversarial test set
 test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
 print(f"Test Acc Adv: {test_acc_adv}")
+
+adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
+
+os.makedirs('../data', exist_ok=True)
+np.save(f'../data/adv_x_{args.seed}.npy', adv_x_np)
+np.save(f'../data/num_indices{args.seed}.npy', input_indices)
+print(f"Saved adversarial examples for seed {args.seed}")
