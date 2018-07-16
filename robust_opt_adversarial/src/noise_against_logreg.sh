@@ -1,7 +1,7 @@
 #!/bin/bash
 for seed in {0..999}
 do
-    sbatch -c '#!/bin/bash
+    bash -c '#!/bin/bash
     #SBATCH -p shared
     #SBATCH -o noise.%j.txt
     #SBATCH -e noise.%j.err

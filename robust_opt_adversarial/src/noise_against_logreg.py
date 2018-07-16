@@ -123,6 +123,6 @@ print(f"Test Acc Adv: {test_acc_adv}")
 adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
 
 os.makedirs('../data', exist_ok=True)
-np.save(f'../data/adv_x_{args.seed}.npy', adv_x_np)
-np.save(f'../data/num_indices{args.seed}.npy', input_indices)
+np.save(f'../data/advx_{args.seed}.npy', adv_x_np)
+np.save(f'../data/indices_{args.seed}.npy', input_indices)
 print(f"Saved adversarial examples for seed {args.seed}")
