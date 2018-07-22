@@ -1,16 +1,21 @@
 import argparse
+import copy
+import logging
 import math
 import os
-import numpy as np
 
 import keras
+import numpy as np
 import tensorflow as tf
+
 from cleverhans.attacks import DeepFool
 from cleverhans.utils import batch_indices
 from cleverhans.utils_keras import KerasModelWrapper
-from cleverhans.utils_mnist import data_mnist
-from keras.layers import Activation, Dense, Flatten
-from keras.models import Sequential
+from utils import load_data, logistic_regression_model, to_onehot
+
+logger = logging.getLogger("noise_against_log_reg")
+logging.basicConfig(
+    format='%(asctime)s: %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', type=float, default=0.001)
@@ -19,44 +24,43 @@ parser.add_argument('--seed', type=int, default=0)
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--drop_ratio', type=float, default=0.5)
 parser.add_argument('--noise_eps', type=float, default=0.1)
+parser.add_argument(
+    '--data', type=str, choices=['mnist', 'cifar10'], default='mnist')
+parser.add_argument('--test_eval', type=bool, default=False)
 args = parser.parse_args()
 
-num_inputs = int(28 * 28 * (1 - args.drop_ratio))
-
-print(f"Generating adversarial examples for seed {args.seed}")
-
-
-def logistic_regression_model(input_ph, num_inputs, nb_classes=10):
-    model = Sequential()
-    model.add(Dense(nb_classes, input_shape=(num_inputs, )))
-    model.add(Activation('softmax'))
-    return model
-
+logger.INFO(
+    f"Generating adversarial examples for {args.data}, seed {args.seed}")
 
 # Create TF session and set as Keras backend session
 sess = tf.Session()
-# Get MNIST test data
-X_train, Y_train, X_test, Y_test = data_mnist()
+
+# Load data
+X_train_org, Y_train, X_test_org, Y_test = load_data(args.data)
+
 # Flatten image matrices
-num_train, num_rows, num_cols, num_channels = X_train.shape
-num_test, _, _, _ = X_test.shape
-X_train = X_train.reshape((num_train, num_rows * num_cols * num_channels))
-X_test = X_test.reshape((num_test, num_rows * num_cols * num_channels))
+num_train, num_rows, num_cols, num_channels = X_train_org.shape
+num_test, _, _, _ = X_test_org.shape
+_, num_classes = Y_train.shape
+X_train_org = X_train_org.reshape((num_train,
+                                   num_rows * num_cols * num_channels))
+X_test_org = X_test_org.reshape((num_test, num_rows * num_cols * num_channels))
+num_elements = num_rows * num_cols * num_channels
+num_inputs = int(num_elements * (1 - args.drop_ratio))
 
 # Randomly drop some ratio of pixels
 np.random.seed(args.seed)
-input_indices = np.random.choice(
-    num_rows * num_cols, num_inputs, replace=False)
-X_train = X_train[:, input_indices]
-X_test = X_test[:, input_indices]
+input_indices = np.random.choice(num_elements, num_inputs, replace=False)
+X_train = X_train_org[:, input_indices]
+X_test = X_test_org[:, input_indices]
 
 # Define placeholders
 x = tf.placeholder(tf.float32, shape=(None, num_inputs))
-y = tf.placeholder(tf.float32, shape=(None, 10))
+y = tf.placeholder(tf.float32, shape=(None, num_classes))
 
 # Wrap log reg model for applying adversarial examples
-model = logistic_regression_model(x, num_inputs)
-wrap = KerasModelWrapper(model, 10)
+model = logistic_regression_model(num_inputs)
+wrap = KerasModelWrapper(model, num_classes)
 
 # Define the objective
 logits = wrap.get_logits(x)
@@ -109,20 +113,25 @@ for epoch in range(args.epochs):
 
     feed_dict = {x: X_train, y: Y_train}
     acc_val = sess.run(acc_op, feed_dict=feed_dict)
-    print(f"Epoch: {epoch}, Train Acc: {acc_val:.5f}")
+    logger.INFO(f"Epoch: {epoch}, Train Acc: {acc_val:.5f}")
 
-# Evaluate the model on the test set
-feed_dict = {x: X_test, y: Y_test}
-test_acc = sess.run(acc_op, feed_dict=feed_dict)
-print(f"Test Acc: {test_acc}")
+if args.test_eval:
+    # Evaluate the model on the test set
+    feed_dict = {x: X_test, y: Y_test}
+    test_acc = sess.run(acc_op, feed_dict=feed_dict)
+    logger.INFO(f"Test Acc: {test_acc}")
 
-# Evaluate the model on the adversarial test set
-test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
-print(f"Test Acc Adv: {test_acc_adv}")
+    # Evaluate the model on the adversarial test set
+    test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
+    logger.INFO(f"Test Acc Adv: {test_acc_adv}")
 
 adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
+advf_x_np = copy.deepcopy(X_train_org)
+advf_x_np[:, input_indices] = adv_x_np
+advf_x_np = advf_x_np.reshape(num_train, num_rows, num_cols, num_channels)
 
-os.makedirs('../data', exist_ok=True)
-np.save(f'../data/advx_{args.seed}.npy', adv_x_np)
-np.save(f'../data/indices_{args.seed}.npy', input_indices)
-print(f"Saved adversarial examples for seed {args.seed}")
+path = f'../data/{args.data}'
+os.makedirs(path, exist_ok=True)
+np.save(f'../data/{args.data}/adv_{args.seed}.npy', advf_x_np)
+np.save(f'../data/{args.data}/ind_{args.seed}.npy', input_indices)
+logger.INFO(f"Saved adversarial examples for {args.data}, seed {args.seed}")
