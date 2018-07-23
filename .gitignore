@@ -107,6 +107,6 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-notebooks
-models
+model
+result
 data
