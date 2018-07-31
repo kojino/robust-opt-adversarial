@@ -95,7 +95,6 @@ adv_x = deepfool.generate(x, **deepfool_params)
 if args.verbose:
     print('verbose: adv_x generate done')
 
-
 # Consider the attack to be constant
 adv_x = tf.stop_gradient(adv_x)
 
@@ -146,7 +145,6 @@ for epoch in range(args.epochs):
     acc_val = sess.run(acc_op, feed_dict=feed_dict)
     logger.info(f"Epoch: {epoch}, Train Acc: {acc_val:.5f}")
 
-
 if args.verbose:
     print("verbose: epoch loop done")
 
@@ -166,15 +164,11 @@ if args.test_eval:
     test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
     logger.info(f"Test Acc Adv: {test_acc_adv}")
 
-
     if args.verbose:
         print("verbose: test_acc_adv={}".format(test_acc_adv))
 
-adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
-
 if args.verbose:
     print("verbose: sess.run adv_x_np finished")
-
 
 logger.info("Generating noise...")
 adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
