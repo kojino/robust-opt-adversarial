@@ -16,15 +16,15 @@ from cleverhans.utils import batch_indices
 from cleverhans.utils_keras import KerasModelWrapper
 from utils import load_data, logistic_regression_model
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
-# logger = logging.getLogger("noise_against_log_reg")
+logger = logging.getLogger("noise_against_log_reg")
 
-# logging.basicConfig(
-#    format='%(asctime)s: %(message)s',
-#    level='INFO',
-#    stream=sys.stderr,
-#    datefmt='%m/%d/%Y %I:%M:%S %p')
+logging.basicConfig(
+   format='%(asctime)s: %(message)s',
+   level='INFO',
+   stream=sys.stderr,
+   datefmt='%m/%d/%Y %I:%M:%S %p')
 
 
 parser = argparse.ArgumentParser()
@@ -45,12 +45,11 @@ args = parser.parse_args()
 # fh.setFormatter(formatter)
 # logger.addHandler(fh)
 
-# logger.info(
-#    f"Generating adversarial examples for {args.data}, seed {args.seed}")
+logger.info(
+   f"Generating adversarial examples for {args.data}, seed {args.seed}")
 
 # Create TF session and set as Keras backend session
-# sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-sess = tf.Session()
+sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
 # Load data
 X_train_org, Y_train, X_test_org, Y_test = load_data(args.data)
@@ -157,7 +156,7 @@ for epoch in range(args.epochs):
 
     feed_dict = {x: X_train, y: Y_train}
     acc_val = sess.run(acc_op, feed_dict=feed_dict)
-    # logger.info(f"Epoch: {epoch}, Train Acc: {acc_val:.5f}")
+    logger.info(f"Epoch: {epoch}, Train Acc: {acc_val:.5f}")
 
 if args.verbose:
     print("verbose: epoch loop done")
@@ -169,14 +168,14 @@ if args.test_eval:
 
     feed_dict = {x: X_test, y: Y_test}
     test_acc = sess.run(acc_op, feed_dict=feed_dict)
-    # logger.info(f"Test Acc: {test_acc}")
+    logger.info(f"Test Acc: {test_acc}")
 
     if args.verbose:
         print("verbose: test_acc={}".format(test_acc))
 
     # Evaluate the model on the adversarial test set
     test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
-    # logger.info(f"Test Acc Adv: {test_acc_adv}")
+    logger.info(f"Test Acc Adv: {test_acc_adv}")
 
     if args.verbose:
         print("verbose: test_acc_adv={}".format(test_acc_adv))
@@ -184,10 +183,10 @@ if args.test_eval:
 if args.verbose:
     print("verbose: sess.run adv_x_np finished")
 
-# logger.info("Generating noise...")
+logger.info("Generating noise...")
 adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
-# logger.info("Generating noise done!")
-# logger.info("Saving noise...")
+logger.info("Generating noise done!")
+logger.info("Saving noise...")
 
 advf_x_np = copy.deepcopy(X_train_org)
 advf_x_np[:, input_indices] = adv_x_np
@@ -200,4 +199,4 @@ path = f'../data/{args.data}/logreg_adv'
 os.makedirs(path, exist_ok=True)
 np.save(f'{path}/adv_{args.seed}.npy', advf_x_np)
 np.save(f'{path}/ind_{args.seed}.npy', input_indices)
-# logger.info(f"Saved adversarial examples for {args.data}, seed {args.seed}")
+logger.info(f"Saved adversarial examples for {args.data}, seed {args.seed}")
