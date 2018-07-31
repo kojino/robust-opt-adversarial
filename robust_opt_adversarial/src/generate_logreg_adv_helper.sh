@@ -1,6 +1,6 @@
 #!/bin/bash
-for seed in {10..11}
+for seed in {12..13}
 do
     echo $seed
-    bash generate_logreg_adv.sh $seed
+    sbatch generate_logreg_adv.sh $seed
 done
