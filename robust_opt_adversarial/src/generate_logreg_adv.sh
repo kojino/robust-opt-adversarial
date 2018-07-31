@@ -1,5 +1,6 @@
 #!/bin/bash
-#SBATCH -p shared
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
 #SBATCH -o noise.%j.txt
 #SBATCH -e noise.%j.err
 #SBATCH -t 09:01:00
