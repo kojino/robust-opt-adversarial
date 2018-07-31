@@ -166,6 +166,7 @@ if args.test_eval:
     test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
     logger.info(f"Test Acc Adv: {test_acc_adv}")
 
+
     if args.verbose:
         print("verbose: test_acc_adv={}".format(test_acc_adv))
 
@@ -173,6 +174,12 @@ adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
 
 if args.verbose:
     print("verbose: sess.run adv_x_np finished")
+
+
+logger.info("Generating noise...")
+adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
+logger.info("Generating noise done!")
+logger.info("Saving noise...")
 
 advf_x_np = copy.deepcopy(X_train_org)
 advf_x_np[:, input_indices] = adv_x_np
