@@ -35,7 +35,7 @@ logger.info(
     f"Generating adversarial examples for {args.data}, seed {args.seed}")
 
 # Create TF session and set as Keras backend session
-sess = tf.Session()
+sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
 
 # Load data
 X_train_org, Y_train, X_test_org, Y_test = load_data(args.data)
