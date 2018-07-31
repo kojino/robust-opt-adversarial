@@ -126,8 +126,10 @@ if args.test_eval:
     # Evaluate the model on the adversarial test set
     test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
     logger.info(f"Test Acc Adv: {test_acc_adv}")
-
+logger.info("Generating noise...")
 adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
+logger.info("Generating noise done!")
+logger.info("Saving noise...")
 advf_x_np = copy.deepcopy(X_train_org)
 advf_x_np[:, input_indices] = adv_x_np
 advf_x_np = advf_x_np.reshape(num_train, num_rows, num_cols, num_channels)
