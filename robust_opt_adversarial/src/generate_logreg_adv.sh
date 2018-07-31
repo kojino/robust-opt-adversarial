@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -p gpu
+#SBATCH -p gpu_requeue
 #SBATCH --gres=gpu:1
 #SBATCH -o noise.%j.txt
 #SBATCH -e noise.%j.err
