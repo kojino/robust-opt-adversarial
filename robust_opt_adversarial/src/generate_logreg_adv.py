@@ -4,6 +4,7 @@ import logging
 import math
 import os
 import sys
+import datetime
 
 import keras
 import numpy as np
@@ -17,6 +18,7 @@ from cleverhans.utils_keras import KerasModelWrapper
 from utils import load_data, logistic_regression_model
 
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
 
 logger = logging.getLogger("noise_against_log_reg")
 
@@ -44,6 +46,10 @@ args = parser.parse_args()
 # fh.setLevel(logging.DEBUG)
 # fh.setFormatter(formatter)
 # logger.addHandler(fh)
+
+start_time = datetime.datetime.now()
+logger.info(f"START TIME {start_time}")
+
 
 logger.info(f"Generating adversarial examples for {args.data}, seed {args.seed}")
 
@@ -199,3 +205,8 @@ os.makedirs(path, exist_ok=True)
 np.save(f'{path}/adv_{args.seed}.npy', advf_x_np)
 np.save(f'{path}/ind_{args.seed}.npy', input_indices)
 logger.info(f"Saved adversarial examples for {args.data}, seed {args.seed}")
+
+finish_time = datetime.datetime.now()
+logger.info(f"START   TIME {start_time}")
+logger.info(f"FINISH  TIME {finish_time}")
+logger.info(f"ELAPSED TIME {finish_time-start_time}")
