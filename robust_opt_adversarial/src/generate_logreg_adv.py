@@ -29,6 +29,7 @@ parser.add_argument('--noise_eps', type=float, default=0.1)
 parser.add_argument(
     '--data', type=str, choices=['mnist', 'cifar10'], default='mnist')
 parser.add_argument('--test_eval', type=bool, default=False)
+parser.add_argument('--verbose', type=bool, default=False)
 args = parser.parse_args()
 
 logger.info(
@@ -71,27 +72,51 @@ loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y, logits=logits)
 # Define the update func
 optimizer = tf.train.AdamOptimizer(learning_rate=args.lr)
 train_step = optimizer.minimize(loss)
+
+if args.verbose:
+    print('verbose: train_step done')
+
 acc, acc_op = tf.metrics.accuracy(
     labels=tf.argmax(y, 1), predictions=tf.argmax(logits, 1))
+
+if args.verbose:
+    print('verbose: acc={}, acc_op={}'.format(acc, acc_op))
 
 # Define adv attack
 deepfool = DeepFool(wrap, sess=sess)
 deepfool_params = {'eps': args.noise_eps, 'clip_min': 0., 'clip_max': 1.}
 
+if args.verbose:
+    print('verbose: about to generate deepfool noise')
+
 # Attack images
 adv_x = deepfool.generate(x, **deepfool_params)
+
+if args.verbose:
+    print('verbose: adv_x generate done')
+
+
 # Consider the attack to be constant
 adv_x = tf.stop_gradient(adv_x)
+
+if args.verbose:
+    print('verbose: tf.stop_gradient done')
 
 # Evaluate predictions on adv attacks
 preds = model(adv_x)
 acc_adv, acc_op_adv = tf.metrics.accuracy(
     labels=tf.argmax(y, 1), predictions=tf.argmax(preds, 1))
 
+if args.verbose:
+    print('verbose: acc_adv={}, acc_op_adv={}'.format(acc_adv, acc_op_adv))
+
 # Initialize variables
 sess.run(tf.global_variables_initializer())
 sess.run(tf.local_variables_initializer())
 rng = np.random.RandomState()  # for batch sampling
+
+if args.verbose:
+    print("verbose: about to enter epoch for loop")
 
 for epoch in range(args.epochs):
     # Compute number of batches
@@ -101,6 +126,10 @@ for epoch in range(args.epochs):
     # Indices to shuffle training set
     index_shuf = list(range(len(X_train)))
     rng.shuffle(index_shuf)
+
+    if args.verbose:
+        print("verbose: in epoch for loop, about to do batch loop")
+
     for batch in range(num_batches):
 
         # Compute batch start and end indices
@@ -117,22 +146,47 @@ for epoch in range(args.epochs):
     acc_val = sess.run(acc_op, feed_dict=feed_dict)
     logger.info(f"Epoch: {epoch}, Train Acc: {acc_val:.5f}")
 
+
+if args.verbose:
+    print("verbose: epoch loop done")
+
 if args.test_eval:
     # Evaluate the model on the test set
+    if args.verbose:
+        print("verbose: evaluate model on test set")
+
     feed_dict = {x: X_test, y: Y_test}
     test_acc = sess.run(acc_op, feed_dict=feed_dict)
     logger.info(f"Test Acc: {test_acc}")
 
+    if args.verbose:
+        print("verbose: test_acc={}".format(test_acc))
+
     # Evaluate the model on the adversarial test set
     test_acc_adv = sess.run(acc_op_adv, feed_dict=feed_dict)
     logger.info(f"Test Acc Adv: {test_acc_adv}")
+
+
+    if args.verbose:
+        print("verbose: test_acc_adv={}".format(test_acc_adv))
+
+adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
+
+if args.verbose:
+    print("verbose: sess.run adv_x_np finished")
+
+
 logger.info("Generating noise...")
 adv_x_np = sess.run(adv_x, feed_dict=feed_dict)
 logger.info("Generating noise done!")
 logger.info("Saving noise...")
+
 advf_x_np = copy.deepcopy(X_train_org)
 advf_x_np[:, input_indices] = adv_x_np
 advf_x_np = advf_x_np.reshape(num_train, num_rows, num_cols, num_channels)
+
+if args.verbose:
+    print("verbose: advf_x_np created")
 
 path = f'../data/{args.data}/logreg_adv'
 os.makedirs(path, exist_ok=True)
