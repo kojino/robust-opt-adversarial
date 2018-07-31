@@ -62,7 +62,7 @@ y = tf.placeholder(tf.float32, shape=(None, num_classes))
 
 # Wrap log reg model for applying adversarial examples
 model = logistic_regression_model(num_inputs)
-wrap = KerasModelWrapper(model, num_classes)
+wrap = KerasModelWrapper(model)
 
 # Define the objective
 logits = wrap.get_logits(x)
