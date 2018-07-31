@@ -8,7 +8,7 @@ import keras
 import numpy as np
 import tensorflow as tf
 
-from cleverhans.attacks import DeepFool
+from cleverhans.attacks import FastGradientMethod
 from cleverhans.utils import batch_indices
 from cleverhans.utils_keras import KerasModelWrapper
 from utils import load_data, logistic_regression_model
@@ -83,7 +83,7 @@ if args.verbose:
     print('verbose: acc={}, acc_op={}'.format(acc, acc_op))
 
 # Define adv attack
-deepfool = DeepFool(wrap, sess=sess)
+deepfool = FastGradientMethod(wrap, sess=sess)
 deepfool_params = {'eps': args.noise_eps, 'clip_min': 0., 'clip_max': 1.}
 
 if args.verbose:
