@@ -3,6 +3,8 @@ import copy
 import logging
 import math
 import os
+import datetime
+import resource
 
 import keras
 import numpy as np
@@ -20,7 +22,7 @@ logging.basicConfig(
     datefmt='%m/%d/%Y %I:%M:%S %p')
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--num_hidden_layers', type=float, default=2)
+parser.add_argument('--num_hidden_layers', type=int, default=2)
 parser.add_argument('--noise_eps', type=float, default=0.1)
 parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--epochs', type=int, default=2)
@@ -32,10 +34,24 @@ parser.add_argument(
 args = parser.parse_args()
 args.num_noises += 1  # for the true data
 
+start_time = datetime.datetime.now()
+logger.info(f"START TIME {start_time}")
+
 # Load data
 X_train, Y_train, X_test, Y_test = load_data(args.data)
 num_train, num_rows, num_cols, num_channels = X_train.shape
 _, num_classes = Y_train.shape
+
+# X_test_padded will be fed into the graph under x
+# so it needs to have the same shape including the first dimensionsion args.num_noises
+# even though we only need x[0] to compute accuracy
+# this is a waste of memory but is needed to make it work if we write the computational graph this way
+
+X_test_padded = np.array([X_test for _ in range(args.num_noises)]).reshape(args.num_noises, 10000, 28, 28, 1)
+
+
+logger.info(f"num_train {num_train}, num_rows {num_rows}, num_cols {num_cols}, num_channels {num_channels}")
+logger.info(f"num_classes {num_classes}")
 
 # Load adversarial examples generated from logistic regressions
 X_train_adv = np.zeros((args.num_noises, num_train, num_rows, num_cols,
@@ -50,13 +66,15 @@ sess.run(tf.global_variables_initializer())
 x = tf.placeholder(
     tf.float32,
     shape=(args.num_noises, None, num_rows, num_cols, num_channels))
+
 y = tf.placeholder(tf.float32, shape=(None, num_classes))
 w = tf.placeholder(tf.float32, shape=(args.num_noises, ))
 
 model = fully_connected_nn_model(
     (num_rows, num_cols, num_channels),
+    num_classes=num_classes,
     num_hidden_layers=args.num_hidden_layers)
-wrap = KerasModelWrapper(model, num_classes)
+wrap = KerasModelWrapper(model)
 
 losses = tf.zeros([0], tf.float32)
 
@@ -146,7 +164,7 @@ for oracle_iter in range(args.num_oracle_iter):
         unnormalized_current_weights)
     # Log current weights for later iterations
     weights_distribution[oracle_iter, :] = normalized_current_weights
-    logging.info(f"Noise ratio: f{normalized_current_weights}")
+    logging.info(f"Noise ratio: {normalized_current_weights}")
 
     ### Train model with weighted loss for each noise ###
     loss_total_list = np.zeros((args.num_noises, ))
@@ -173,11 +191,21 @@ for oracle_iter in range(args.num_oracle_iter):
     # Save average loss for the next iteration
     losses_np[oracle_iter, :] = loss_total_list
     # Save the lastest trained model
+    os.makedirs("../model/robust_optimization/", exist_ok=True)
     saver.save(sess, "../model/robust_optimization/model.ckpt")
 
+# solve https://stackoverflow.com/questions/46079644/tensorflow-attempting-to-use-uninitialized-value-error-when-restoring
+# "The accuracy operation contains some local variable which is not part of the graph, 
+# so it should be initialized manually. adding sess.run(tf.local_variables_initializer()) 
+# after restore will initialize the local variables."
+sess.run(tf.local_variables_initializer())
+
 # 1. Accuracy on uncorrupted test set
-feed_dict = {x: X_test, y: Y_test}
+feed_dict = {x: X_test_padded, 
+             y: Y_test}
+
 test_acc = sess.run(acc_op, feed_dict=feed_dict)
+
 logger.info(f"Test Acc: {test_acc}")
 
 # 2. Accuracy on test set corrupted by known noises that are used during training
@@ -196,3 +224,20 @@ losses_np.dump(f'{path}/losses.npy')
 weights_distribution.dump(f'{path}/weights_distribution.npy')
 accs = np.array([test_acc, test_acc_deepfool, test_acc_momentum_iterative])
 accs.dump(f'{path}/accs.npy')
+
+finish_time = datetime.datetime.now()
+logger.info(f"START   TIME {start_time}")
+logger.info(f"FINISH  TIME {finish_time}")
+logger.info(f"ELAPSED TIME {finish_time-start_time}")
+
+logger.info(f"PEAK MEMORY USAGE {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss} KILOBYTES")
+
+logger.info(f"PARAMETER SUMMARIES")
+for k,v in sorted(vars(args).items()):
+    logger.info("{0}: {1}".format(k,v))
+
+logger.info("TEST SUMMARIES")
+logger.info(f"Test Acc: {test_acc}")
+logger.info(f"Test Acc Deepfool: {test_acc_deepfool}")
+logger.info(f"Test Acc Momentum Iterative: {test_acc_momentum_iterative}")
+
